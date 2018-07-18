@@ -37,6 +37,7 @@ void init_SDL_surface(render_context_type* rc)
         exit(1);
     }
     SDL_WM_SetCaption("vcaptfx2: MC0511", NULL);
+    SDL_ShowCursor(SDL_DISABLE);
 }
 
 render_context_type* render_init(void* machine_context, void* process_context)
