@@ -50,6 +50,7 @@ typedef struct render_context_struct {
     void (*render_function)(render_context_type);
     int fullscreen;
     int interlaced;
+    int skip_flag;
     uint8_t no_signal_flag;
     uint8_t no_device_flag;
     process_context_type* process_context;
