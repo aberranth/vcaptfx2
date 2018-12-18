@@ -24,29 +24,33 @@ typedef enum EVENTS {EVENT_QUIT, EVENT_RESIZE, ESC_PRESSED,
                      ONE_PRESSED, TWO_PRESSED, A_PRESSED, Q_PRESSED, W_PRESSED, S_PRESSED, E_PRESSED, D_PRESSED,
                      FULLSCREEN_PRESSED, INTERLACED_PRESSED, NOTHING} event_type;
 
-event_type read_events(render_context_type* rc)
-{
+event_type read_events(render_context_type* rc) { // {{{
     SDL_Event event;
 
-    if (SDL_PollEvent (&event)) {
+    if (SDL_WaitEvent(&event)) { // execution suspends here while waiting on an event
+        if (event.type == SDL_USEREVENT) {
+          video_output(rc);
+        }
+
         if (event.type == SDL_QUIT) {
             return EVENT_QUIT;
         }
 
         if (event.type == SDL_KEYDOWN) {
-            if (event.key.keysym.sym == SDLK_ESCAPE) { return ESC_PRESSED; }
+            int sym = event.key.keysym.sym;
+            if (sym == SDLK_ESCAPE) { return ESC_PRESSED; }
 
-            if (event.key.keysym.sym == SDLK_1) { return ONE_PRESSED; }
-            if (event.key.keysym.sym == SDLK_2) { return TWO_PRESSED; }
-            if (event.key.keysym.sym == SDLK_q) { return Q_PRESSED; }
-            if (event.key.keysym.sym == SDLK_a) { return A_PRESSED; }
-            if (event.key.keysym.sym == SDLK_w) { return W_PRESSED; }
-            if (event.key.keysym.sym == SDLK_s) { return S_PRESSED; }
-            if (event.key.keysym.sym == SDLK_e) { return E_PRESSED; }
-            if (event.key.keysym.sym == SDLK_d) { return D_PRESSED; }
+            if (sym == SDLK_1) { return ONE_PRESSED; }
+            if (sym == SDLK_2) { return TWO_PRESSED; }
+            if (sym == SDLK_q) { return Q_PRESSED; }
+            if (sym == SDLK_a) { return A_PRESSED; }
+            if (sym == SDLK_w) { return W_PRESSED; }
+            if (sym == SDLK_s) { return S_PRESSED; }
+            if (sym == SDLK_e) { return E_PRESSED; }
+            if (sym == SDLK_d) { return D_PRESSED; }
 
-            if (event.key.keysym.sym == SDLK_f) { return FULLSCREEN_PRESSED; }
-            if (event.key.keysym.sym == SDLK_i) { return INTERLACED_PRESSED; }
+            if (sym == SDLK_f) { return FULLSCREEN_PRESSED; }
+            if (sym == SDLK_i) { return INTERLACED_PRESSED; }
         }
 
         if (event.type == SDL_VIDEORESIZE) {
@@ -57,10 +61,9 @@ event_type read_events(render_context_type* rc)
     }
 
     return NOTHING;
-}
+} // }}}
 
-void print_help(void)
-{
+void print_help(void) { // {{{
     printf("Usege:  vcaptfx2  [--list | -l] [--dump | -d] \n");
     printf("                  [--machine | -m <name or index>] [--config | -c <file>]\n\n");
     printf("--list    : List all machines\n");
@@ -71,7 +74,7 @@ void print_help(void)
     printf("First machine profile in config will be used if no --machine or -m options passed.\n");
     printf("Version: %d.%1.1f\n", VERSION_MAJOR, VERSION_MINOR);
     exit(0);
-}
+} /// }}}
 
 
 int main(int argc, char** argv)
@@ -88,7 +91,7 @@ int main(int argc, char** argv)
     char* cfg_file = NULL;
     uint8_t signal_present = 100;
 
-    while (1) {
+    while (1) { // process command line arguments {{{
         static struct option long_options[] = {
             /* These options set a flag. */
             {"verbose", no_argument,       &verbose_flag, 1},
@@ -159,7 +162,7 @@ int main(int argc, char** argv)
             default:
                 abort ();
         }
-    }
+    } // }}}
 
     mac = machine_init(command, mach_name, cfg_file);
 
@@ -258,8 +261,6 @@ int main(int argc, char** argv)
                 signal_present++;
             }
         }
-
-        video_output(rc);
     }
 
     return 0;

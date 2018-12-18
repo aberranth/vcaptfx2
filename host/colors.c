@@ -39,9 +39,9 @@ void colors_16(match_color colors[], int grb)
     {
         color.R = color.G = color.B = 0;
 
-        if ((i & 0x04) && !(i & 0x40)) { color.R = 0xB0; }
-        if ((i & 0x02) && !(i & 0x40)) { color.G = 0xB0; }
-        if ((i & 0x01) && !(i & 0x40)) { color.B = 0xB0; }
+        if ((i & 0x04) && !(i & 0x40)) { color.R = 0x7F; }
+        if ((i & 0x02) && !(i & 0x40)) { color.G = 0x7F; }
+        if ((i & 0x01) && !(i & 0x40)) { color.B = 0x7F; }
 
         if ((i & 0x44) == 0x44) { color.R = 0xFF; }
         if ((i & 0x42) == 0x42) { color.G = 0xFF; }

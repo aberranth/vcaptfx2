@@ -146,6 +146,12 @@ machine_type* machine_init(uint8_t command, const char* machine_name, const char
     mac->inv_bits = 0x47;
     mac->sync_bit_mask = 0x80;
     mac->pixel_bits_mask = 0x7F;
+
+    mac->vsync_detected_event.type = SDL_USEREVENT;
+    mac->vsync_detected_event.user.code = 1;
+    mac->vsync_detected_event.user.data1 = NULL;
+    mac->vsync_detected_event.user.data2 = NULL;
+
     colors_16(mac->colors, 0);
 
     if (command & COMMAND_DUMP) {

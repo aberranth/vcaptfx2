@@ -31,6 +31,7 @@ typedef struct machine_struct {
     int N_OF_TRANSFERS;
     int usb_timeout;
     int freq;
+    SDL_Event vsync_detected_event;
 } machine_type;
 
 typedef struct process_context_struct {

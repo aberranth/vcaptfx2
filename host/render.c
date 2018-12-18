@@ -217,6 +217,5 @@ int video_output(render_context_type* rc)
     int y = (rc->sdl_surface->h - rc->viewport_height) / 2;
     SDL_UpdateRect(rc->sdl_surface, x, y, rc->viewport_width, rc->viewport_height);
 
-    SLEEP(10);
     return 0;
 }

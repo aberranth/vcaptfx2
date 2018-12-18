@@ -6,6 +6,7 @@
 #include "render.h"
 #include "process.h"
 #include "machine.h"
+#include "SDL.h"
 
 process_context_type* process_init(machine_type* mac)
 {
@@ -87,6 +88,7 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
         }
 
         if (v_detect(mac, c)) {
+            SDL_PushEvent(&mac->vsync_detected_event);
             prc->cur_line = mac->v_counter_shift;
             prc->cur_px   = mac->h_counter_shift;
             prc->framebuf_position = prc->framebuf;
@@ -95,13 +97,6 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
         if (prc->cur_line >= 0 && prc->cur_line < mac->frame_height &&
                 prc->cur_px >= 0 && prc->cur_px < mac->frame_width)
         {
-            // px* framebuf_px = prc->framebuf_position++;
-
-            // extract_color(mac, c, &framebuf_px->B,
-            //                       &framebuf_px->G,
-            //                       &framebuf_px->R);
-            // framebuf_px->A = 0xFF;
-
             int index = prc->cur_line * mac->frame_width + prc->cur_px;
             extract_color(mac, c, &prc->framebuf[index].components.B,
                                   &prc->framebuf[index].components.G,
