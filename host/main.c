@@ -29,11 +29,11 @@ event_type read_events(render_context_type* rc) { // {{{
 
     if (SDL_WaitEvent(&event)) { // execution suspends here while waiting on an event
         if (event.type == SDL_USEREVENT) { // vsync_detected_event
-          if (rc->skip_flag) {
-            rc->skip_flag = 0;
+          if (rc->skip_flag % 1) {
+            rc->skip_flag++;
           } else {
             video_output(rc);
-            rc->skip_flag = 1;
+            rc->skip_flag++;
           }
         }
 

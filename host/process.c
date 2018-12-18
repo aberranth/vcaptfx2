@@ -77,6 +77,10 @@ uint8_t h_detect(machine_type* mac, uint8_t c)
 void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
 {
     uint32_t i;
+    // have to track line index, otherwise first line will blink
+    int static line_index = 0;
+    int vsync_in_progress = 0;
+
     machine_type* mac = prc->machine_context;
 
     for (i = 0; i < length; i++) {
@@ -85,28 +89,34 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
         if (h_detect(mac, c) && (prc->cur_line < mac->frame_height - 1)) {
             prc->cur_line++;
             prc->cur_px = prc->machine_context->h_counter_shift;
+            line_index = prc->cur_line * mac->frame_width;
         }
 
         if (v_detect(mac, c)) {
-            SDL_PushEvent(&mac->vsync_detected_event);
-            prc->cur_line = mac->v_counter_shift;
-            prc->cur_px   = mac->h_counter_shift;
-            prc->framebuf_position = prc->framebuf;
+           vsync_in_progress = 1;
+        } else {
+            if (vsync_in_progress) {
+                SDL_PushEvent(&mac->vsync_detected_event);
+                prc->cur_line = mac->v_counter_shift;
+                prc->cur_px   = mac->h_counter_shift;
+                prc->framebuf_position = prc->framebuf;
+                vsync_in_progress = 0;
+            }
+ 
+            if (prc->cur_line >= 0 &&
+                prc->cur_line < mac->frame_height &&
+                prc->cur_px >= 0 &&
+                prc->cur_px < mac->frame_width)
+            {
+                int index = line_index + prc->cur_px;
+                extract_color(mac,
+                        c,
+                        &prc->framebuf[index].components.B,
+                        &prc->framebuf[index].components.G,
+                        &prc->framebuf[index].components.R);
+                prc->framebuf[index].components.A = 0xFF;
+            }
         }
-
-        if (prc->cur_line >= 0 && prc->cur_line < mac->frame_height &&
-                prc->cur_px >= 0 && prc->cur_px < mac->frame_width)
-        {
-            int index = prc->cur_line * mac->frame_width + prc->cur_px;
-            extract_color(mac, c, &prc->framebuf[index].components.B,
-                                  &prc->framebuf[index].components.G,
-                                  &prc->framebuf[index].components.R);
-            prc->framebuf[index].components.A = 0xFF;
-        }
-
-        if (prc->cur_px < mac->frame_width - 1) {
-            prc->cur_px++;
-        }
+        if (prc->cur_px < mac->frame_width - 1) prc->cur_px++;
     }
 }
-
