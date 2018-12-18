@@ -28,12 +28,22 @@ event_type read_events(render_context_type* rc) { // {{{
     SDL_Event event;
 
     if (SDL_WaitEvent(&event)) { // execution suspends here while waiting on an event
-        if (event.type == SDL_USEREVENT) {
-          video_output(rc);
+        if (event.type == SDL_USEREVENT) { // vsync_detected_event
+          if (rc->skip_flag) {
+            rc->skip_flag = 0;
+          } else {
+            video_output(rc);
+            rc->skip_flag = 1;
+          }
         }
 
         if (event.type == SDL_QUIT) {
             return EVENT_QUIT;
+        }
+
+        if (event.type == SDL_VIDEORESIZE) {
+            resizeWindow(rc, event.resize.w, event.resize.h);
+            return EVENT_RESIZE;
         }
 
         if (event.type == SDL_KEYDOWN) {
@@ -52,12 +62,6 @@ event_type read_events(render_context_type* rc) { // {{{
             if (sym == SDLK_f) { return FULLSCREEN_PRESSED; }
             if (sym == SDLK_i) { return INTERLACED_PRESSED; }
         }
-
-        if (event.type == SDL_VIDEORESIZE) {
-            resizeWindow(rc, event.resize.w, event.resize.h);
-            return EVENT_RESIZE;
-        }
-
     }
 
     return NOTHING;
