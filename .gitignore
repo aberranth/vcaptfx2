@@ -2,4 +2,6 @@ _site
 vgcore.*
 gmon.out
 tags
+default.vim
+default.vim.lock
 

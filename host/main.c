@@ -20,16 +20,30 @@ extern const char* vcapt_firmware[];
 uint8_t usb_stop = 0;
 static int verbose_flag;
 
-typedef enum EVENTS {EVENT_QUIT, EVENT_RESIZE, ESC_PRESSED,
-                     ONE_PRESSED, TWO_PRESSED, A_PRESSED, Q_PRESSED, W_PRESSED, S_PRESSED, E_PRESSED, D_PRESSED,
-                     FULLSCREEN_PRESSED, INTERLACED_PRESSED, NOTHING} event_type;
+typedef enum EVENTS {
+  EVENT_QUIT,
+  EVENT_RESIZE,
+  ESC_PRESSED,
+  ONE_PRESSED,
+  TWO_PRESSED,
+  THREE_PRESSED,
+  A_PRESSED,
+  Q_PRESSED,
+  W_PRESSED,
+  S_PRESSED,
+  E_PRESSED,
+  D_PRESSED,
+  FULLSCREEN_PRESSED,
+  INTERLACED_PRESSED,
+  NOTHING
+} event_type;
 
 event_type read_events(render_context_type* rc) { // {{{
     SDL_Event event;
 
     if (SDL_WaitEvent(&event)) { // execution suspends here while waiting on an event
         if (event.type == SDL_USEREVENT) { // vsync_detected_event
-          if (rc->skip_flag % 1) {
+          if (rc->skip_flag % 2) {
             rc->skip_flag++;
           } else {
             video_output(rc);
@@ -52,6 +66,7 @@ event_type read_events(render_context_type* rc) { // {{{
 
             if (sym == SDLK_1) { return ONE_PRESSED; }
             if (sym == SDLK_2) { return TWO_PRESSED; }
+            if (sym == SDLK_3) { return THREE_PRESSED; }
             if (sym == SDLK_q) { return Q_PRESSED; }
             if (sym == SDLK_a) { return A_PRESSED; }
             if (sym == SDLK_w) { return W_PRESSED; }
@@ -200,13 +215,20 @@ int main(int argc, char** argv)
         }
 
         if (ev == ONE_PRESSED) {
+            rc->viewport_width  = rc->process_context->machine_context->frame_width / 2 * 3;
+            rc->viewport_height = rc->process_context->machine_context->frame_height * 3;
+            rc->render_function = update_sdl_surface_23x;
+            init_SDL_surface(rc);
+        }
+
+        if (ev == TWO_PRESSED) {
             rc->viewport_width  = rc->process_context->machine_context->frame_width  * 7 / 4;
             rc->viewport_height = rc->process_context->machine_context->frame_height * 3;
             rc->render_function = update_sdl_surface_74x;
             init_SDL_surface(rc);
         }
 
-        if (ev == TWO_PRESSED) {
+        if (ev == THREE_PRESSED) {
             rc->viewport_width  = rc->process_context->machine_context->frame_width  * 2;
             rc->viewport_height = rc->process_context->machine_context->frame_height * 3;
             rc->render_function = update_sdl_surface_2x;

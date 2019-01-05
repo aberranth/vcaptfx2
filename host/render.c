@@ -15,7 +15,7 @@ int resizeWindow(render_context_type* rc, int width, int height)
     return 1;
 }
 
-void init_SDL_surface(render_context_type* rc)
+void init_SDL_surface(render_context_type* rc) // {{{
 {
     int w, h;
     uint32_t sdl_flags = SDL_HWSURFACE;
@@ -38,9 +38,9 @@ void init_SDL_surface(render_context_type* rc)
     }
     SDL_WM_SetCaption("vcaptfx2: MC0511", NULL);
     SDL_ShowCursor(SDL_DISABLE);
-}
+} // }}}
 
-render_context_type* render_init(void* machine_context, void* process_context)
+render_context_type* render_init(void* machine_context, void* process_context) // {{{
 {
     render_context_type* rc;
     rc = malloc(sizeof(render_context_type));
@@ -60,15 +60,23 @@ render_context_type* render_init(void* machine_context, void* process_context)
 
     init_SDL_surface(rc);
     return rc;
-}
+} // }}}
 
 void render_done(render_context_type* rc)
 {
     free(rc);
 }
 
-void draw_centered_image(render_context_type* rc, int img_width, int img_height,
-                         const unsigned char* img_pixels) // {{{
+#define DIM_PIXEL(a) ( (a & 0xFEFEFEFF) >> 1 )
+
+px average_rgb(px a, px b)
+{
+    px avg;
+    avg.bits = (a.bits & 0xFEFEFEFF) + (b.bits & 0xFEFEFEFF) >> 1;
+    return avg;
+}
+
+void draw_centered_image(render_context_type* rc, int img_width, int img_height, const unsigned char* img_pixels) // {{{
 {
     int x0, y0;
     int frame_width  = rc->process_context->machine_context->frame_width;
@@ -93,9 +101,49 @@ void draw_centered_image(render_context_type* rc, int img_width, int img_height,
     }
 } // }}}
 
-#define DIM_PIXEL(a) ( (a & 0xFEFEFEFF) >> 1 )
+void update_sdl_surface_23x(render_context_type* rc) //  960x864 {{{
+{
+    if (rc->interlaced)
+        update_sdl_surface_23x_interlaced(rc);
+    else
+        update_sdl_surface_23x_non_interlaced(rc);
+} // }}}
+void update_sdl_surface_74x(render_context_type* rc) // 1152x864 {{{
+{
+    if (rc->interlaced)
+        update_sdl_surface_74x_interlaced(rc);
+    else
+        update_sdl_surface_74x_non_interlaced(rc);
+} // }}}
+void update_sdl_surface_2x(render_context_type* rc)  // 1280x864 {{{
+{
+    if (rc->interlaced)
+        update_sdl_surface_74x_interlaced(rc);
+    else
+        update_sdl_surface_74x_non_interlaced(rc);
+} // }}}
 
-void update_sdl_surface_2x(render_context_type* rc)
+int video_output(render_context_type* rc) // {{{
+{
+    if (rc->no_signal_flag)
+        draw_centered_image(rc, no_signal_img.width, no_signal_img.height, no_signal_img.pixel_data);
+    if (rc->no_device_flag)
+        draw_centered_image(rc, no_device_img.width, no_device_img.height, no_device_img.pixel_data);
+
+    rc->render_function(rc);
+
+    // https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlflip.html
+    // SDL_Flip(rc->sdl_surface);
+
+    // https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlupdaterect.html
+    int x = (rc->sdl_surface->w - rc->viewport_width)  / 2;
+    int y = (rc->sdl_surface->h - rc->viewport_height) / 2;
+    SDL_UpdateRect(rc->sdl_surface, x, y, rc->viewport_width, rc->viewport_height);
+
+    return 0;
+} // }}}
+
+void update_sdl_surface_23x_interlaced(render_context_type* rc) // 960x864 {{{
 {
     int frame_width  = rc->process_context->machine_context->frame_width;
     int frame_height = rc->process_context->machine_context->frame_height;
@@ -103,47 +151,73 @@ void update_sdl_surface_2x(render_context_type* rc)
 
     px* framebuf = rc->process_context->framebuf;
     px* viewport = rc->sdl_surface->pixels;
-    px current_pixel, dimmed_pixel;
+    px pixel0, pixel1, dimmed_pixel;
 
     // add a shift to center vertically
     viewport += rc->sdl_surface->w * ((rc->sdl_surface->h - rc->viewport_height) / 2);
     // add a shift to center horizontally
     viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
     int x, y;
-    //SDL_LockSurface(rc->sdl_surface);
+
     for (y = 0; y < frame_height; y++)
     {
         px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
         px* vp_line0 = vp_line0_start;
         px* vp_line1 = vp_line0 + rc->sdl_surface->w;
         px* vp_line2 = vp_line1 + rc->sdl_surface->w;
-        for (x = 0; x < frame_width; x++)
+        for (x = 0; x < frame_width/2; x++)
         {
-            current_pixel = *(framebuf++);
-            dimmed_pixel.bits = DIM_PIXEL(current_pixel.bits);
+            pixel0 = *(framebuf++);
+            pixel1 = *(framebuf++);
+            dimmed_pixel.bits = DIM_PIXEL(pixel0.bits);
 
-            *(vp_line0++) = current_pixel;
-            *(vp_line0++) = current_pixel;
+            *(vp_line0++) = pixel0;
+            *(vp_line0++) = average_rgb(pixel0, pixel1);
+            *(vp_line0++) = pixel1;
+            *(vp_line2++) = dimmed_pixel;
             *(vp_line2++) = dimmed_pixel;
             *(vp_line2++) = dimmed_pixel;
         }
         memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
-        // memset((void*)vp_line2, 0, viewport_pitch);
-
-        if (!rc->interlaced)
-            memcpy((void*)vp_line2 - viewport_pitch, (void*)vp_line0_start, viewport_pitch);
     }
-    //SDL_UnlockSurface(rc->sdl_surface);
-}
-
-px average_rgb(px a, px b)
+} // }}}
+void update_sdl_surface_23x_non_interlaced(render_context_type* rc) // 960x864 {{{
 {
-    px avg;
-    avg.bits = (a.bits & 0xFEFEFEFF) + (b.bits & 0xFEFEFEFF) >> 1;
-    return avg;
-}
+    int frame_width  = rc->process_context->machine_context->frame_width;
+    int frame_height = rc->process_context->machine_context->frame_height;
+    int viewport_pitch = rc->viewport_width * sizeof(px);
 
-void update_sdl_surface_74x(render_context_type* rc)
+    px* framebuf = rc->process_context->framebuf;
+    px* viewport = rc->sdl_surface->pixels;
+    px pixel0, pixel1, dimmed_pixel;
+
+    // add a shift to center vertically
+    viewport += rc->sdl_surface->w * ((rc->sdl_surface->h - rc->viewport_height) / 2);
+    // add a shift to center horizontally
+    viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
+
+    int x, y;
+    for (y = 0; y < frame_height; y++)
+    {
+        px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
+        px* vp_line0 = vp_line0_start;
+        px* vp_line1 = vp_line0 + rc->sdl_surface->w;
+        px* vp_line2 = vp_line1 + rc->sdl_surface->w;
+        for (x = 0; x < frame_width/2; x++)
+        {
+            pixel0 = *(framebuf++);
+            pixel1 = *(framebuf++);
+
+            *(vp_line0++) = pixel0;
+            *(vp_line0++) = average_rgb(pixel0, pixel1);
+            *(vp_line0++) = pixel1;
+        }
+        memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
+        memcpy((void*)vp_line2, (void*)vp_line0_start, viewport_pitch);
+    }
+} // }}}
+
+void update_sdl_surface_74x_interlaced(render_context_type* rc) // 1152x864 {{{
 {
     int frame_width  = rc->process_context->machine_context->frame_width;
     int frame_height = rc->process_context->machine_context->frame_height;
@@ -158,7 +232,7 @@ void update_sdl_surface_74x(render_context_type* rc)
     // add a shift to center horizontally
     viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
     int x, y;
-    //SDL_LockSurface(rc->sdl_surface);
+
     for (y = 0; y < frame_height; y++)
     {
         px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
@@ -194,28 +268,120 @@ void update_sdl_surface_74x(render_context_type* rc)
             (vp_line2++)->bits = DIM_PIXEL(pix4.bits);
         }
         memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
-        if (!rc->interlaced)
-            memcpy((void*)vp_line2 - viewport_pitch, (void*)vp_line0_start, viewport_pitch);
     }
     //SDL_UnlockSurface(rc->sdl_surface);
-}
-
-int video_output(render_context_type* rc)
+} // }}}
+void update_sdl_surface_74x_non_interlaced(render_context_type* rc) // 1152x864 {{{
 {
-    if (rc->no_signal_flag)
-        draw_centered_image(rc, no_signal_img.width, no_signal_img.height, no_signal_img.pixel_data);
-    if (rc->no_device_flag)
-        draw_centered_image(rc, no_device_img.width, no_device_img.height, no_device_img.pixel_data);
+    int frame_width  = rc->process_context->machine_context->frame_width;
+    int frame_height = rc->process_context->machine_context->frame_height;
+    int viewport_pitch = rc->viewport_width * sizeof(px);
 
-    rc->render_function(rc);
+    px* framebuf  = rc->process_context->framebuf;
+    px* viewport = rc->sdl_surface->pixels;
+    px pix1, pix2, pix3, pix4, subpix1, subpix2, subpix3;
 
-    // https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlflip.html
-    // SDL_Flip(rc->sdl_surface);
+    // add a shift to center vertically
+    viewport += rc->sdl_surface->w * ((rc->sdl_surface->h - rc->viewport_height) / 2);
+    // add a shift to center horizontally
+    viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
+    int x, y;
 
-    // https://www.libsdl.org/release/SDL-1.2.15/docs/html/sdlupdaterect.html
-    int x = (rc->sdl_surface->w - rc->viewport_width)  / 2;
-    int y = (rc->sdl_surface->h - rc->viewport_height) / 2;
-    SDL_UpdateRect(rc->sdl_surface, x, y, rc->viewport_width, rc->viewport_height);
+    for (y = 0; y < frame_height; y++)
+    {
+        px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
+        px* vp_line0 = vp_line0_start;
+        px* vp_line1 = vp_line0 + rc->sdl_surface->w;
+        px* vp_line2 = vp_line1 + rc->sdl_surface->w;
 
-    return 0;
-}
+        for (x = 0; x < frame_width / 4; x++)
+        {
+            pix1 = *(framebuf++);
+            pix2 = *(framebuf++);
+            pix3 = *(framebuf++);
+            pix4 = *(framebuf++);
+
+            subpix1 = average_rgb(pix1, pix2);
+            subpix2 = average_rgb(pix2, pix3);
+            subpix3 = average_rgb(pix3, pix4);
+
+            *(vp_line0++) = pix1;
+            *(vp_line0++) = subpix1;
+            *(vp_line0++) = pix2;
+            *(vp_line0++) = subpix2;
+            *(vp_line0++) = pix3;
+            *(vp_line0++) = subpix3;
+            *(vp_line0++) = pix4;
+        }
+        memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
+        memcpy((void*)vp_line2, (void*)vp_line0_start, viewport_pitch);
+    }
+} // }}}
+
+void update_sdl_surface_2x_interlaced(render_context_type* rc)  // 1280x864 {{{
+{
+    int frame_width  = rc->process_context->machine_context->frame_width;
+    int frame_height = rc->process_context->machine_context->frame_height;
+    int viewport_pitch = rc->viewport_width * sizeof(px);
+
+    px* framebuf = rc->process_context->framebuf;
+    px* viewport = rc->sdl_surface->pixels;
+    px current_pixel, dimmed_pixel;
+
+    // add a shift to center vertically
+    viewport += rc->sdl_surface->w * ((rc->sdl_surface->h - rc->viewport_height) / 2);
+    // add a shift to center horizontally
+    viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
+    int x, y;
+
+    for (y = 0; y < frame_height; y++)
+    {
+        px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
+        px* vp_line0 = vp_line0_start;
+        px* vp_line1 = vp_line0 + rc->sdl_surface->w;
+        px* vp_line2 = vp_line1 + rc->sdl_surface->w;
+        for (x = 0; x < frame_width; x++)
+        {
+            current_pixel = *(framebuf++);
+            dimmed_pixel.bits = DIM_PIXEL(current_pixel.bits);
+
+            *(vp_line0++) = current_pixel;
+            *(vp_line0++) = current_pixel;
+            *(vp_line2++) = dimmed_pixel;
+            *(vp_line2++) = dimmed_pixel;
+        }
+        memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
+    }
+} // }}}
+void update_sdl_surface_2x_non_interlaced(render_context_type* rc)  // 1280x864 {{{
+{
+    int frame_width  = rc->process_context->machine_context->frame_width;
+    int frame_height = rc->process_context->machine_context->frame_height;
+    int viewport_pitch = rc->viewport_width * sizeof(px);
+
+    px* framebuf = rc->process_context->framebuf;
+    px* viewport = rc->sdl_surface->pixels;
+    px current_pixel, dimmed_pixel;
+
+    // add a shift to center vertically
+    viewport += rc->sdl_surface->w * ((rc->sdl_surface->h - rc->viewport_height) / 2);
+    // add a shift to center horizontally
+    viewport += (rc->sdl_surface->w - rc->viewport_width) / 2;
+    int x, y;
+
+    for (y = 0; y < frame_height; y++)
+    {
+        px* vp_line0_start = viewport + y * 3 * rc->sdl_surface->w;
+        px* vp_line0 = vp_line0_start;
+        px* vp_line1 = vp_line0 + rc->sdl_surface->w;
+        px* vp_line2 = vp_line1 + rc->sdl_surface->w;
+        for (x = 0; x < frame_width; x++)
+        {
+            current_pixel = *(framebuf++);
+            *(vp_line0++) = current_pixel;
+            *(vp_line0++) = current_pixel;
+        }
+        memcpy((void*)vp_line1, (void*)vp_line0_start, viewport_pitch);
+        memcpy((void*)vp_line2, (void*)vp_line0_start, viewport_pitch);
+    }
+} // }}}

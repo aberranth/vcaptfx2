@@ -78,7 +78,7 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
 {
     uint32_t i;
     // have to track line index, otherwise first line will blink
-    int static line_index = 0;
+    int static fb_line_index = 0;
     int vsync_in_progress = 0;
 
     machine_type* mac = prc->machine_context;
@@ -89,7 +89,7 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
         if (h_detect(mac, c) && (prc->cur_line < mac->frame_height - 1)) {
             prc->cur_line++;
             prc->cur_px = prc->machine_context->h_counter_shift;
-            line_index = prc->cur_line * mac->frame_width;
+            fb_line_index = prc->cur_line * mac->frame_width;
         }
 
         if (v_detect(mac, c)) {
@@ -108,15 +108,16 @@ void parse_data(process_context_type* prc, uint8_t* buf, uint32_t length)
                 prc->cur_px >= 0 &&
                 prc->cur_px < mac->frame_width)
             {
-                int index = line_index + prc->cur_px;
+                int fb_idx = fb_line_index + prc->cur_px;
                 extract_color(mac,
-                        c,
-                        &prc->framebuf[index].components.B,
-                        &prc->framebuf[index].components.G,
-                        &prc->framebuf[index].components.R);
-                prc->framebuf[index].components.A = 0xFF;
+                              c,
+                              &prc->framebuf[fb_idx].components.B,
+                              &prc->framebuf[fb_idx].components.G,
+                              &prc->framebuf[fb_idx].components.R);
+                prc->framebuf[fb_idx].components.A = 0xFF;
             }
         }
+        // the check is added in order to get rid of garbage on most right part
         if (prc->cur_px < mac->frame_width - 1) prc->cur_px++;
     }
 }
